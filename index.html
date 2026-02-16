@@ -33,31 +33,43 @@
             left: 50%;
             transform: translateX(-50%);
             display: flex;
+            align-items: center;
             gap: 15px;
             z-index: 100;
         }
 
-        button, label {
+        button, label, .color-container {
             background: rgba(0, 243, 255, 0.03);
             border: 1px solid rgba(0, 243, 255, 0.4);
             color: #00f3ff;
-            padding: 14px 24px;
+            padding: 12px 20px;
             cursor: pointer;
             text-transform: uppercase;
             font-size: 9px;
             letter-spacing: 2px;
             transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
             backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        button:hover, label:hover {
+        button:hover, label:hover, .color-container:hover {
             background: rgba(0, 243, 255, 0.15);
             border-color: #00f3ff;
             box-shadow: 0 0 25px rgba(0, 243, 255, 0.3);
         }
 
-        input[type="file"] {
+        input[type="file"], input[type="color"] {
             display: none;
+        }
+
+        .color-preview {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            border: 1px solid #00f3ff;
+            background: #00f3ff;
         }
 
         .glitch {
@@ -81,7 +93,13 @@
     <div id="controls">
         <label for="file-upload">LOAD SONIC CORE</label>
         <input type="file" id="file-upload" accept="audio/*">
-        <button id="mic-btn">ACTIVATE MIC SYNC</button>
+        
+        <label for="color-picker" class="color-container">
+            CORE_TINT <div id="preview" class="color-preview"></div>
+        </label>
+        <input type="color" id="color-picker" value="#00f3ff">
+
+        <button id="mic-btn">MIC SYNC</button>
     </div>
 
     <script type="module">
@@ -93,6 +111,7 @@
 
         let audioCtx, analyser, dataArray;
         let bass = 0, avg = 0, treble = 0;
+        let userHue = 185; // Default Cyan-ish
         
         // --- SCENE SETUP ---
         const scene = new THREE.Scene();
@@ -116,24 +135,14 @@
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 2.2, 0.7, 0.2);
         composer.addPass(bloomPass);
 
-        // --- SLING & INTERACTION STATE ---
+        // --- INTERACTION STATE ---
         let isDragging = false, wasDragging = false;
         let rotationVelocity = { x: 0, y: 0 };
         let lastMousePos = { x: 0, y: 0 };
         let expansionFactor = 1.0, targetExpansion = 1.0;
 
-        // Input Listeners
-        const onDown = (x, y) => {
-            isDragging = true;
-            targetExpansion = 1.45;
-            lastMousePos = { x, y };
-        };
-
-        const onUp = () => {
-            isDragging = false;
-            targetExpansion = 1.0;
-        };
-
+        const onDown = (x, y) => { isDragging = true; targetExpansion = 1.45; lastMousePos = { x, y }; };
+        const onUp = () => { isDragging = false; targetExpansion = 1.0; };
         const onMove = (x, y) => {
             if (isDragging) {
                 rotationVelocity.x = (x - lastMousePos.x) * 0.005;
@@ -145,32 +154,42 @@
         window.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY));
         window.addEventListener('mouseup', onUp);
         window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
-
         window.addEventListener('touchstart', (e) => onDown(e.touches[0].clientX, e.touches[0].clientY));
         window.addEventListener('touchend', onUp);
         window.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX, e.touches[0].clientY));
+
+        // --- COLOR PICKER LOGIC ---
+        document.getElementById('color-picker').addEventListener('input', (e) => {
+            const hex = e.target.value;
+            document.getElementById('preview').style.background = hex;
+            // Convert Hex to HSL for the global engine
+            const r = parseInt(hex.slice(1,3), 16) / 255;
+            const g = parseInt(hex.slice(3,5), 16) / 255;
+            const b = parseInt(hex.slice(5,7), 16) / 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h;
+            if (max === min) h = 0;
+            else if (max === r) h = (g - b) / (max - min) + (g < b ? 6 : 0);
+            else if (max === g) h = (b - r) / (max - min) + 2;
+            else h = (r - g) / (max - min) + 4;
+            userHue = h * 60;
+        });
 
         // --- CORE OBJECTS ---
         const pointCount = 1800;
         const hyperPoints = [];
         const isMagentaArray = new Uint8Array(pointCount);
-
         for (let i = 0; i < pointCount; i++) {
             hyperPoints.push(Array.from({length: 8}, () => (Math.random() - 0.5) * 3));
             isMagentaArray[i] = Math.random() > 0.88 ? 1 : 0;
         }
 
         const geometry = new THREE.BufferGeometry();
-        const material = new THREE.PointsMaterial({ 
-            size: 0.045, 
-            vertexColors: true, 
-            transparent: true, 
-            blending: THREE.AdditiveBlending 
-        });
+        const material = new THREE.PointsMaterial({ size: 0.045, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
         const pointsMesh = new THREE.Points(geometry, material);
         scene.add(pointsMesh);
 
-        // --- CASCADE WEATHER ---
+        // --- CASCADE ---
         const cascadeCount = 420;
         const cascadeParticles = [];
         const cascadePositions = new Float32Array(cascadeCount * 3);
@@ -184,19 +203,14 @@
             for (let i = 0; i < count; i++) {
                 if (cascadeParticles.length >= cascadeCount) break;
                 cascadeParticles.push({
-                    x: (Math.random() - 0.5) * 25,
-                    y: 12 + Math.random() * 8,
-                    z: (Math.random() - 0.5) * 25,
-                    vx: (Math.random() - 0.5) * 0.08,
-                    vy: -0.8 - Math.random() * speedMod,
-                    vz: (Math.random() - 0.5) * 0.08,
-                    life: 1.0,
-                    hue: (baseHue + (Math.random() * 40 - 20)) % 360
+                    x: (Math.random() - 0.5) * 25, y: 12 + Math.random() * 8, z: (Math.random() - 0.5) * 25,
+                    vx: (Math.random() - 0.5) * 0.08, vy: -0.8 - Math.random() * speedMod, vz: (Math.random() - 0.5) * 0.08,
+                    life: 1.0, hue: (baseHue + (Math.random() * 20 - 10)) % 360
                 });
             }
         }
 
-        // --- AUDIO ENGINE ---
+        // --- AUDIO ---
         function setupAudio(sourceNode) {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioCtx.createAnalyser();
@@ -217,107 +231,70 @@
             setupAudio((audioCtx = new AudioContext()).createMediaStreamSource(stream));
         };
 
-        // --- ANIMATION LOOP ---
-        let angle = 0, globalHue = 200;
-
+        // --- LOOP ---
+        let angle = 0;
         function animate() {
             requestAnimationFrame(animate);
-            
             if (analyser) {
                 analyser.getByteFrequencyData(dataArray);
                 bass = dataArray.slice(0, 10).reduce((a,b)=>a+b,0)/(10*255);
                 avg = dataArray.reduce((a,b)=>a+b,0)/(dataArray.length*255);
                 treble = dataArray.slice(200, 250).reduce((a,b)=>a+b,0)/(50*255);
-                
-                globalHue = 200 + (bass * 40) - (treble * 80);
-                camera.fov = 75 + (bass * 15);
-                camera.updateProjectionMatrix();
-                
                 bloomPass.strength = 1.8 + (bass * 2.8);
-                material.size = 0.045 - (treble * 0.035);
-
                 if (!isDragging) {
-                    if (bass > 0.45) spawnCascade(5, 25, 0.6);
-                    if (avg > 0.35) spawnCascade(3, 180, 1.0);
+                    if (bass > 0.45) spawnCascade(4, userHue, 0.6);
                 }
             }
 
-            // UI Feedback
             const statusEl = document.getElementById('sync-status');
-            if (isDragging) {
-                statusEl.innerText = "SLING ENGAGED";
-                statusEl.style.color = "#ff0055";
-            } else {
+            if (isDragging) { statusEl.innerText = "SLING ENGAGED"; statusEl.style.color = "#ff0055"; }
+            else { 
                 statusEl.innerText = analyser ? "LIVE_FORGE_ACTIVE" : "AWAITING SONIC CORE";
                 statusEl.style.color = analyser ? "#00f3ff" : "#ff0055";
-                statusEl.classList.toggle('glitch', !analyser);
             }
 
-            // Sling Physics
             if (!isDragging) {
-                rotationVelocity.x *= 0.96;
-                rotationVelocity.y *= 0.96;
+                rotationVelocity.x *= 0.96; rotationVelocity.y *= 0.96;
                 expansionFactor += (targetExpansion - expansionFactor) * 0.1;
-                
-                if (wasDragging && Math.hypot(rotationVelocity.x, rotationVelocity.y) > 0.02) {
-                    spawnCascade(30, globalHue, 1.4); 
-                }
-            } else {
-                expansionFactor += (targetExpansion - expansionFactor) * 0.2;
-            }
+                if (wasDragging && Math.hypot(rotationVelocity.x, rotationVelocity.y) > 0.02) spawnCascade(25, userHue, 1.4);
+            } else { expansionFactor += (targetExpansion - expansionFactor) * 0.2; }
             wasDragging = isDragging;
 
             pointsMesh.rotation.y += rotationVelocity.x;
             pointsMesh.rotation.x += rotationVelocity.y;
             angle += 0.004 + (avg * 0.07 || 0);
 
-            // Update Swarm
             const pos = new Float32Array(pointCount * 3);
             const col = new Float32Array(pointCount * 3);
-
             hyperPoints.forEach((p, i) => {
                 let c = [...p];
                 let r = angle * (1 + (i % 2 ? bass : avg));
-                
                 let t01 = c[0] * Math.cos(r) - c[1] * Math.sin(r);
-                c[1] = c[0] * Math.sin(r) + c[1] * Math.cos(r);
-                c[0] = t01;
-
+                c[1] = c[0] * Math.sin(r) + c[1] * Math.cos(r); c[0] = t01;
                 const df = (Math.abs(c[5]) * 0.4 + 0.6) * expansionFactor;
-                pos[i*3] = c[0] * 3.8 * df;
-                pos[i*3+1] = c[2] * 3.8 * df;
-                pos[i*3+2] = c[4] * 3.8 * df;
+                pos[i*3] = c[0] * 3.8 * df; pos[i*3+1] = c[2] * 3.8 * df; pos[i*3+2] = c[4] * 3.8 * df;
 
-                const h = (globalHue + (isMagentaArray[i] ? 40 : 0)) % 360;
+                const h = (userHue + (isMagentaArray[i] ? 30 : (bass * 30))) % 360;
                 const rgb = hslToRgb(h / 360, 1, 0.75);
-                col[i*3] = rgb[0];
-                col[i*3+1] = rgb[1];
-                col[i*3+2] = rgb[2];
+                col[i*3] = rgb[0]; col[i*3+1] = rgb[1]; col[i*3+2] = rgb[2];
             });
 
             geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
             geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
 
-            // Update Cascade
             for (let i = cascadeParticles.length - 1; i >= 0; i--) {
                 const p = cascadeParticles[i];
-                p.x += p.vx; p.y += p.vy; p.z += p.vz;
-                p.vy -= 0.012; p.life -= 0.018;
+                p.x += p.vx; p.y += p.vy; p.z += p.vz; p.vy -= 0.012; p.life -= 0.018;
                 if (p.life <= 0) cascadeParticles.splice(i, 1);
             }
-
             for (let i = 0; i < cascadeCount; i++) {
                 const idx = i * 3;
                 if (i < cascadeParticles.length) {
                     const p = cascadeParticles[i];
                     cascadePositions[idx] = p.x; cascadePositions[idx+1] = p.y; cascadePositions[idx+2] = p.z;
                     const rgb = hslToRgb(p.hue / 360, 1, 0.85);
-                    cascadeColors[idx] = rgb[0] * p.life;
-                    cascadeColors[idx+1] = rgb[1] * p.life;
-                    cascadeColors[idx+2] = rgb[2] * p.life;
-                } else {
-                    cascadePositions[idx] = 1000;
-                }
+                    cascadeColors[idx] = rgb[0] * p.life; cascadeColors[idx+1] = rgb[1] * p.life; cascadeColors[idx+2] = rgb[2] * p.life;
+                } else { cascadePositions[idx] = 1000; }
             }
             cascadeGeometry.setAttribute('position', new THREE.BufferAttribute(cascadePositions, 3));
             cascadeGeometry.setAttribute('color', new THREE.BufferAttribute(cascadeColors, 3));
@@ -327,7 +304,6 @@
         }
 
         function hslToRgb(h, s, l) {
-            let r, g, b;
             const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
             const p = 2 * l - q;
             const f = (p, q, t) => {
@@ -345,7 +321,6 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
         animate();
     </script>
 </body>
