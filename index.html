@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HYPERION GRAVITAS // ZENITH // THE SLING</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #010102;
+            font-family: 'Courier New', monospace;
+        }
+
+        #ui {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            color: #00f3ff;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-size: 10px;
+            text-shadow: 0 0 10px #00f3ff;
+            pointer-events: none;
+            line-height: 1.8;
+            z-index: 100;
+            opacity: 0.85;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        button, label {
+            background: rgba(0, 243, 255, 0.03);
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            color: #00f3ff;
+            padding: 14px 24px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 2px;
+            transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            backdrop-filter: blur(8px);
+        }
+
+        button:hover, label:hover {
+            background: rgba(0, 243, 255, 0.15);
+            border-color: #00f3ff;
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.3);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .glitch {
+            color: #ff0055;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        // HYPERION GRAVITAS v.ZENITH<br>
+        // STATUS: <span id="sync-status" class="glitch">AWAITING SONIC CORE</span><br>
+        // ENGINE: SLING_VELOCITY_ADAPTIVE
+    </div>
+
+    <div id="controls">
+        <label for="file-upload">LOAD SONIC CORE</label>
+        <input type="file" id="file-upload" accept="audio/*">
+        <button id="mic-btn">ACTIVATE MIC SYNC</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
+        import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/OrbitControls.js';
+        import { EffectComposer } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+
+        let audioCtx, analyser, dataArray;
+        let bass = 0, avg = 0, treble = 0;
+        
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x010103, 0.055);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 11;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.enableZoom = false; 
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 2.2, 0.7, 0.2);
+        composer.addPass(bloomPass);
+
+        // --- SLING & INTERACTION STATE ---
+        let isDragging = false, wasDragging = false;
+        let rotationVelocity = { x: 0, y: 0 };
+        let lastMousePos = { x: 0, y: 0 };
+        let expansionFactor = 1.0, targetExpansion = 1.0;
+
+        // Input Listeners
+        const onDown = (x, y) => {
+            isDragging = true;
+            targetExpansion = 1.45;
+            lastMousePos = { x, y };
+        };
+
+        const onUp = () => {
+            isDragging = false;
+            targetExpansion = 1.0;
+        };
+
+        const onMove = (x, y) => {
+            if (isDragging) {
+                rotationVelocity.x = (x - lastMousePos.x) * 0.005;
+                rotationVelocity.y = (y - lastMousePos.y) * 0.005;
+            }
+            lastMousePos = { x, y };
+        };
+
+        window.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY));
+        window.addEventListener('mouseup', onUp);
+        window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+
+        window.addEventListener('touchstart', (e) => onDown(e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('touchend', onUp);
+        window.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX, e.touches[0].clientY));
+
+        // --- CORE OBJECTS ---
+        const pointCount = 1800;
+        const hyperPoints = [];
+        const isMagentaArray = new Uint8Array(pointCount);
+
+        for (let i = 0; i < pointCount; i++) {
+            hyperPoints.push(Array.from({length: 8}, () => (Math.random() - 0.5) * 3));
+            isMagentaArray[i] = Math.random() > 0.88 ? 1 : 0;
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        const material = new THREE.PointsMaterial({ 
+            size: 0.045, 
+            vertexColors: true, 
+            transparent: true, 
+            blending: THREE.AdditiveBlending 
+        });
+        const pointsMesh = new THREE.Points(geometry, material);
+        scene.add(pointsMesh);
+
+        // --- CASCADE WEATHER ---
+        const cascadeCount = 420;
+        const cascadeParticles = [];
+        const cascadePositions = new Float32Array(cascadeCount * 3);
+        const cascadeColors = new Float32Array(cascadeCount * 3);
+        const cascadeGeometry = new THREE.BufferGeometry();
+        const cascadeMaterial = new THREE.PointsMaterial({ size: 0.08, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
+        const cascadeMesh = new THREE.Points(cascadeGeometry, cascadeMaterial);
+        scene.add(cascadeMesh);
+
+        function spawnCascade(count, baseHue, speedMod = 1) {
+            for (let i = 0; i < count; i++) {
+                if (cascadeParticles.length >= cascadeCount) break;
+                cascadeParticles.push({
+                    x: (Math.random() - 0.5) * 25,
+                    y: 12 + Math.random() * 8,
+                    z: (Math.random() - 0.5) * 25,
+                    vx: (Math.random() - 0.5) * 0.08,
+                    vy: -0.8 - Math.random() * speedMod,
+                    vz: (Math.random() - 0.5) * 0.08,
+                    life: 1.0,
+                    hue: (baseHue + (Math.random() * 40 - 20)) % 360
+                });
+            }
+        }
+
+        // --- AUDIO ENGINE ---
+        function setupAudio(sourceNode) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 512;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            sourceNode.connect(analyser);
+        }
+
+        document.getElementById('file-upload').onchange = async (e) => {
+            const audio = new Audio(URL.createObjectURL(e.target.files[0]));
+            await audio.play();
+            setupAudio(audioCtx ? audioCtx.createMediaElementSource(audio) : (audioCtx = new AudioContext()).createMediaElementSource(audio));
+            analyser.connect(audioCtx.destination);
+        };
+
+        document.getElementById('mic-btn').onclick = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setupAudio((audioCtx = new AudioContext()).createMediaStreamSource(stream));
+        };
+
+        // --- ANIMATION LOOP ---
+        let angle = 0, globalHue = 200;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                bass = dataArray.slice(0, 10).reduce((a,b)=>a+b,0)/(10*255);
+                avg = dataArray.reduce((a,b)=>a+b,0)/(dataArray.length*255);
+                treble = dataArray.slice(200, 250).reduce((a,b)=>a+b,0)/(50*255);
+                
+                globalHue = 200 + (bass * 40) - (treble * 80);
+                camera.fov = 75 + (bass * 15);
+                camera.updateProjectionMatrix();
+                
+                bloomPass.strength = 1.8 + (bass * 2.8);
+                material.size = 0.045 - (treble * 0.035);
+
+                if (!isDragging) {
+                    if (bass > 0.45) spawnCascade(5, 25, 0.6);
+                    if (avg > 0.35) spawnCascade(3, 180, 1.0);
+                }
+            }
+
+            // UI Feedback
+            const statusEl = document.getElementById('sync-status');
+            if (isDragging) {
+                statusEl.innerText = "SLING ENGAGED";
+                statusEl.style.color = "#ff0055";
+            } else {
+                statusEl.innerText = analyser ? "LIVE_FORGE_ACTIVE" : "AWAITING SONIC CORE";
+                statusEl.style.color = analyser ? "#00f3ff" : "#ff0055";
+                statusEl.classList.toggle('glitch', !analyser);
+            }
+
+            // Sling Physics
+            if (!isDragging) {
+                rotationVelocity.x *= 0.96;
+                rotationVelocity.y *= 0.96;
+                expansionFactor += (targetExpansion - expansionFactor) * 0.1;
+                
+                if (wasDragging && Math.hypot(rotationVelocity.x, rotationVelocity.y) > 0.02) {
+                    spawnCascade(30, globalHue, 1.4); 
+                }
+            } else {
+                expansionFactor += (targetExpansion - expansionFactor) * 0.2;
+            }
+            wasDragging = isDragging;
+
+            pointsMesh.rotation.y += rotationVelocity.x;
+            pointsMesh.rotation.x += rotationVelocity.y;
+            angle += 0.004 + (avg * 0.07 || 0);
+
+            // Update Swarm
+            const pos = new Float32Array(pointCount * 3);
+            const col = new Float32Array(pointCount * 3);
+
+            hyperPoints.forEach((p, i) => {
+                let c = [...p];
+                let r = angle * (1 + (i % 2 ? bass : avg));
+                
+                let t01 = c[0] * Math.cos(r) - c[1] * Math.sin(r);
+                c[1] = c[0] * Math.sin(r) + c[1] * Math.cos(r);
+                c[0] = t01;
+
+                const df = (Math.abs(c[5]) * 0.4 + 0.6) * expansionFactor;
+                pos[i*3] = c[0] * 3.8 * df;
+                pos[i*3+1] = c[2] * 3.8 * df;
+                pos[i*3+2] = c[4] * 3.8 * df;
+
+                const h = (globalHue + (isMagentaArray[i] ? 40 : 0)) % 360;
+                const rgb = hslToRgb(h / 360, 1, 0.75);
+                col[i*3] = rgb[0];
+                col[i*3+1] = rgb[1];
+                col[i*3+2] = rgb[2];
+            });
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+
+            // Update Cascade
+            for (let i = cascadeParticles.length - 1; i >= 0; i--) {
+                const p = cascadeParticles[i];
+                p.x += p.vx; p.y += p.vy; p.z += p.vz;
+                p.vy -= 0.012; p.life -= 0.018;
+                if (p.life <= 0) cascadeParticles.splice(i, 1);
+            }
+
+            for (let i = 0; i < cascadeCount; i++) {
+                const idx = i * 3;
+                if (i < cascadeParticles.length) {
+                    const p = cascadeParticles[i];
+                    cascadePositions[idx] = p.x; cascadePositions[idx+1] = p.y; cascadePositions[idx+2] = p.z;
+                    const rgb = hslToRgb(p.hue / 360, 1, 0.85);
+                    cascadeColors[idx] = rgb[0] * p.life;
+                    cascadeColors[idx+1] = rgb[1] * p.life;
+                    cascadeColors[idx+2] = rgb[2] * p.life;
+                } else {
+                    cascadePositions[idx] = 1000;
+                }
+            }
+            cascadeGeometry.setAttribute('position', new THREE.BufferAttribute(cascadePositions, 3));
+            cascadeGeometry.setAttribute('color', new THREE.BufferAttribute(cascadeColors, 3));
+
+            controls.update();
+            composer.render();
+        }
+
+        function hslToRgb(h, s, l) {
+            let r, g, b;
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            const f = (p, q, t) => {
+                if (t < 0) t += 1; if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            };
+            return [f(p, q, h + 1/3), f(p, q, h), f(p, q, h - 1/3)];
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
