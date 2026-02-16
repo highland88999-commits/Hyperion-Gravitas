@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>8D HYPER-PROJECTION // V2.0</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #010103; font-family: 'Courier New', monospace; }
+        #overlay {
+            position: absolute; top: 20px; left: 20px; color: #00f3ff;
+            text-transform: uppercase; letter-spacing: 3px; font-size: 11px;
+            text-shadow: 0 0 8px #00f3ff; pointer-events: none; line-height: 1.5;
+        }
+        .glitch-text { color: #ff0055; animation: blink 0.2s infinite alternate; }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.7; } }
+        canvas { display: block; touch-action: none; }
+    </style>
+</head>
+<body>
+    <div id="overlay">
+        SYSTEM: 8D MANIFOLD_v2.0<br>
+        <span class="glitch-text">STATUS: NEURAL_LINK_ACTIVE</span><br>
+        PLANES: [X0-X1][X2-X3][X4-X7]<br>
+        MODULATION: DEPTH_SQUASH + PULSE
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
+        import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/OrbitControls.js';
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x010103, 0.08);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 9;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.rotateSpeed = 0.7;
+
+        // Data Structure
+        const pointCount = 1200;
+        const hyperPoints = [];
+        const isMagentaArray = new Uint8Array(pointCount);
+        
+        for (let i = 0; i < pointCount; i++) {
+            hyperPoints.push(Array.from({length: 8}, () => (Math.random() - 0.5) * 2.5));
+            isMagentaArray[i] = Math.random() > 0.8 ? 1 : 0;
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        const material = new THREE.PointsMaterial({
+            size: 0.05,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+        });
+
+        const pointsMesh = new THREE.Points(geometry, material);
+        scene.add(pointsMesh);
+
+        let angle = 0;
+
+        function updateSimulation() {
+            const positions = new Float32Array(pointCount * 3);
+            const colors = new Float32Array(pointCount * 3);
+            const t = angle * 0.3;
+
+            hyperPoints.forEach((p, i) => {
+                let coords = [...p];
+
+                // --- 8D Rotations ---
+                // X0-X1
+                let temp01 = coords[0] * Math.cos(t) - coords[1] * Math.sin(t);
+                coords[1] = coords[0] * Math.sin(t) + coords[1] * Math.cos(t);
+                coords[0] = temp01;
+
+                // X2-X3 (Higher Frequency)
+                let temp23 = coords[2] * Math.cos(t * 1.6) - coords[3] * Math.sin(t * 1.6);
+                coords[3] = coords[2] * Math.sin(t * 1.6) + coords[3] * Math.cos(t * 1.6);
+                coords[2] = temp23;
+
+                // X4-X7 (Deep Space)
+                let temp47 = coords[4] * Math.cos(t * 0.7) - coords[7] * Math.sin(t * 0.7);
+                coords[7] = coords[4] * Math.sin(t * 0.7) + coords[7] * Math.cos(t * 0.7);
+                coords[4] = temp47;
+
+                // --- Your Depth-Squash Logic ---
+                const depthFactor = Math.abs(coords[5]) * 0.4 + 0.6; 
+                
+                // Project and Apply Depth Factor
+                positions[i * 3]     = (coords[0] * 3.5) * depthFactor;
+                positions[i * 3 + 1] = (coords[2] * 3.5) * depthFactor;
+                positions[i * 3 + 2] = (coords[4] * 3.5);
+
+                // --- Your Color Pulse Logic ---
+                const pulse = Math.sin(t * 5 + coords[0] * 3) * 0.5 + 0.5;
+                const isMag = isMagentaArray[i];
+
+                colors[i * 3]     = isMag ? 1.0 * pulse : 0.0;                 // R
+                colors[i * 3 + 1] = isMag ? 0.0 : 0.95 * (1 - pulse * 0.3);    // G
+                colors[i * 3 + 2] = 1.0;                                       // B
+            });
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        }
+
+        // Interaction scale-up
+        window.addEventListener('pointerdown', () => material.size = 0.1);
+        window.addEventListener('pointerup', () => material.size = 0.05);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            angle += 0.005;
+            updateSimulation();
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
