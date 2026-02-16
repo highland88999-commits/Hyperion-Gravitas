@@ -3,131 +3,188 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>8D HYPER-PROJECTION // V2.0</title>
+    <title>HYPERION GRAVITAS // ZENITH</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #010103; font-family: 'Courier New', monospace; }
-        #overlay {
-            position: absolute; top: 20px; left: 20px; color: #00f3ff;
-            text-transform: uppercase; letter-spacing: 3px; font-size: 11px;
-            text-shadow: 0 0 8px #00f3ff; pointer-events: none; line-height: 1.5;
+        body { margin: 0; overflow: hidden; background: #010102; font-family: 'Courier New', monospace; }
+        #ui {
+            position: absolute; top: 25px; left: 25px; color: #00f3ff;
+            text-transform: uppercase; letter-spacing: 3px; font-size: 10px;
+            text-shadow: 0 0 10px #00f3ff; pointer-events: none; line-height: 1.8;
+            z-index: 100; opacity: 0.8;
         }
-        .glitch-text { color: #ff0055; animation: blink 0.2s infinite alternate; }
-        @keyframes blink { from { opacity: 1; } to { opacity: 0.7; } }
-        canvas { display: block; touch-action: none; }
+        #controls {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 15px; z-index: 100;
+        }
+        button, label {
+            background: rgba(0, 243, 255, 0.03); border: 1px solid rgba(0, 243, 255, 0.4);
+            color: #00f3ff; padding: 14px 24px; cursor: pointer;
+            text-transform: uppercase; font-size: 9px; letter-spacing: 2px;
+            transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); backdrop-filter: blur(8px);
+        }
+        button:hover, label:hover { 
+            background: rgba(0, 243, 255, 0.15); border-color: #00f3ff; 
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.3); 
+        }
+        input[type="file"] { display: none; }
+        .glitch { color: #ff0055; animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
-    <div id="overlay">
-        SYSTEM: 8D MANIFOLD_v2.0<br>
-        <span class="glitch-text">STATUS: NEURAL_LINK_ACTIVE</span><br>
-        PLANES: [X0-X1][X2-X3][X4-X7]<br>
-        MODULATION: DEPTH_SQUASH + PULSE
+    <div id="ui">
+        // HYPERION GRAVITAS v.ZENITH<br>
+        // STATUS: <span id="sync-status" class="glitch">AWAITING SONIC CORE</span><br>
+        // ENGINE: UNREAL_BLOOM_FORGE_V2
+    </div>
+
+    <div id="controls">
+        <label for="file-upload">LOAD SONIC CORE</label>
+        <input type="file" id="file-upload" accept="audio/*">
+        <button id="mic-btn">ACTIVATE MIC SYNC</button>
     </div>
 
     <script type="module">
         import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
         import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/OrbitControls.js';
+        import { EffectComposer } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/postprocessing/UnrealBloomPass.js';
 
+        // --- Persistent Audio Context ---
+        let audioCtx;
+
+        // --- Core Scene ---
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x010103, 0.08);
-
+        scene.fog = new THREE.FogExp2(0x010103, 0.06);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 9;
+        camera.position.z = 11;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
         document.body.appendChild(renderer.domElement);
+
+        // --- Post-Processing Ascension ---
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            2.2, 0.7, 0.2 // Zenith Bloom: Intense, Broad, Low Threshold
+        );
+        composer.addPass(bloomPass);
+
+        const optimizeRes = () => {
+            const dpr = window.devicePixelRatio;
+            const downscale = dpr > 1.5 ? 1.5 : 1;
+            composer.setSize(window.innerWidth / downscale, window.innerHeight / downscale);
+        };
+        optimizeRes();
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.rotateSpeed = 0.7;
 
-        // Data Structure
-        const pointCount = 1200;
+        // --- Particle Manifold ---
+        const pointCount = 1800;
         const hyperPoints = [];
         const isMagentaArray = new Uint8Array(pointCount);
-        
         for (let i = 0; i < pointCount; i++) {
-            hyperPoints.push(Array.from({length: 8}, () => (Math.random() - 0.5) * 2.5));
-            isMagentaArray[i] = Math.random() > 0.8 ? 1 : 0;
+            hyperPoints.push(Array.from({length: 8}, () => (Math.random() - 0.5) * 3));
+            isMagentaArray[i] = Math.random() > 0.88 ? 1 : 0;
         }
 
         const geometry = new THREE.BufferGeometry();
         const material = new THREE.PointsMaterial({
-            size: 0.05,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.9,
-            blending: THREE.AdditiveBlending,
+            size: 0.045, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.95
         });
-
         const pointsMesh = new THREE.Points(geometry, material);
         scene.add(pointsMesh);
 
-        let angle = 0;
+        let analyser, dataArray;
+        let bass = 0, avg = 0;
 
-        function updateSimulation() {
-            const positions = new Float32Array(pointCount * 3);
-            const colors = new Float32Array(pointCount * 3);
-            const t = angle * 0.3;
-
-            hyperPoints.forEach((p, i) => {
-                let coords = [...p];
-
-                // --- 8D Rotations ---
-                // X0-X1
-                let temp01 = coords[0] * Math.cos(t) - coords[1] * Math.sin(t);
-                coords[1] = coords[0] * Math.sin(t) + coords[1] * Math.cos(t);
-                coords[0] = temp01;
-
-                // X2-X3 (Higher Frequency)
-                let temp23 = coords[2] * Math.cos(t * 1.6) - coords[3] * Math.sin(t * 1.6);
-                coords[3] = coords[2] * Math.sin(t * 1.6) + coords[3] * Math.cos(t * 1.6);
-                coords[2] = temp23;
-
-                // X4-X7 (Deep Space)
-                let temp47 = coords[4] * Math.cos(t * 0.7) - coords[7] * Math.sin(t * 0.7);
-                coords[7] = coords[4] * Math.sin(t * 0.7) + coords[7] * Math.cos(t * 0.7);
-                coords[4] = temp47;
-
-                // --- Your Depth-Squash Logic ---
-                const depthFactor = Math.abs(coords[5]) * 0.4 + 0.6; 
-                
-                // Project and Apply Depth Factor
-                positions[i * 3]     = (coords[0] * 3.5) * depthFactor;
-                positions[i * 3 + 1] = (coords[2] * 3.5) * depthFactor;
-                positions[i * 3 + 2] = (coords[4] * 3.5);
-
-                // --- Your Color Pulse Logic ---
-                const pulse = Math.sin(t * 5 + coords[0] * 3) * 0.5 + 0.5;
-                const isMag = isMagentaArray[i];
-
-                colors[i * 3]     = isMag ? 1.0 * pulse : 0.0;                 // R
-                colors[i * 3 + 1] = isMag ? 0.0 : 0.95 * (1 - pulse * 0.3);    // G
-                colors[i * 3 + 2] = 1.0;                                       // B
-            });
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        function setupAudio(sourceNode) {
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 512;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            sourceNode.connect(analyser);
+            document.getElementById('sync-status').innerText = "LIVE_FORGE_ACTIVE";
+            document.getElementById('sync-status').classList.remove('glitch');
         }
 
-        // Interaction scale-up
-        window.addEventListener('pointerdown', () => material.size = 0.1);
-        window.addEventListener('pointerup', () => material.size = 0.05);
+        document.getElementById('file-upload').onchange = async (e) => {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const audio = new Audio(URL.createObjectURL(e.target.files[0]));
+            await audio.play();
+            const source = audioCtx.createMediaElementSource(audio);
+            setupAudio(source);
+            source.connect(audioCtx.destination);
+        };
 
+        document.getElementById('mic-btn').onclick = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            setupAudio(audioCtx.createMediaStreamSource(stream));
+        };
+
+        let angle = 0;
         function animate() {
             requestAnimationFrame(animate);
-            angle += 0.005;
-            updateSimulation();
+            
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                bass = dataArray.slice(0, 12).reduce((a,b)=>a+b,0)/(12*255);
+                avg = dataArray.reduce((a,b)=>a+b,0)/(dataArray.length*255);
+
+                camera.fov = 75 + (bass * 15);
+                camera.updateProjectionMatrix();
+                
+                renderer.toneMappingExposure = 1.2 + (avg * 0.5);
+                bloomPass.strength = 1.8 + (bass * 2.8);
+                bloomPass.radius = 0.55 + (avg * 0.3);
+                bloomPass.threshold = 0.3 - (avg * 0.1);
+            } else {
+                // Idle Heartbeat Pulse
+                bloomPass.strength = 0.8 + Math.sin(Date.now() * 0.001) * 0.2;
+                bloomPass.threshold = 0.4;
+            }
+
+            const pos = new Float32Array(pointCount * 3);
+            const col = new Float32Array(pointCount * 3);
+            angle += 0.004 + (avg * 0.07 || 0);
+            
+            hyperPoints.forEach((p, i) => {
+                let c = [...p];
+                let r = angle * (1 + (i % 2 ? bass : avg));
+                
+                let t01 = c[0] * Math.cos(r) - c[1] * Math.sin(r);
+                c[1] = c[0] * Math.sin(r) + c[1] * Math.cos(r);
+                c[0] = t01;
+
+                const df = Math.abs(c[5]) * 0.4 + 0.6;
+                pos[i*3] = c[0] * 3.8 * df;
+                pos[i*3+1] = c[2] * 3.8 * df;
+                pos[i*3+2] = c[4] * 3.8;
+
+                const pulse = Math.sin(angle * 3 + c[0]) * 0.5 + 0.5;
+                col[i*3] = isMagentaArray[i] ? (0.6 + bass) * pulse : 0;
+                col[i*3+1] = isMagentaArray[i] ? 0 : 0.85 * (1 - pulse * 0.2);
+                col[i*3+2] = 1.0;
+            });
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+            
             controls.update();
-            renderer.render(scene, camera);
+            composer.render();
         }
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            optimizeRes();
         });
 
         animate();
